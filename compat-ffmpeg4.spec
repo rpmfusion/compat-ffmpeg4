@@ -9,7 +9,18 @@
 %global _without_vpx      1
 %endif
 
-%if 0%{?fedora} || 0%{?rhel} > 7
+%if 0%{?el9}
+%global _without_ass      1
+%global _without_frei0r   1
+%global _without_jack     1
+%global _without_zimg     1
+%ifnarch x86_64
+%global _without_vaapi    1
+%global _with_mfx         1
+%endif
+%endif
+
+%if 0%{?fedora}
 %ifarch x86_64
 %global _with_mfx         1
 %endif
@@ -120,7 +131,7 @@ BuildRequires:  texinfo
 %{!?_without_x264:BuildRequires: x264-devel >= 0.0.0-0.31}
 %{!?_without_x265:BuildRequires: x265-devel}
 %{!?_without_xvid:BuildRequires: xvidcore-devel}
-BuildRequires:  zimg-devel >= 2.7.0
+%{!?_without_zimg:BuildRequires:  zimg-devel >= 2.7.0}
 BuildRequires:  zlib-devel
 %{?_with_zmq:BuildRequires: zeromq-devel}
 %{!?_without_zvbi:BuildRequires: zvbi-devel}
@@ -225,7 +236,7 @@ This package contains development files for %{name}
     %{!?_without_x265:--enable-libx265} \\\
     %{!?_without_xvid:--enable-libxvid} \\\
     --enable-libxml2 \\\
-    --enable-libzimg \\\
+    %{!?_without_zimg--enable-libzimg} \\\
     %{?_with_zmq:--enable-libzmq} \\\
     %{!?_without_zvbi:--enable-libzvbi} \\\
     --enable-avfilter \\\
