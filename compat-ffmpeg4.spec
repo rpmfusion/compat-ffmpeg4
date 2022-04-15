@@ -45,7 +45,7 @@
 
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
-Version:        4.4.1
+Version:        4.4.2
 Release:        1%{?dist}
 License:        %{ffmpeg_license}
 URL:            http://ffmpeg.org/
@@ -53,6 +53,7 @@ Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
 
 BuildRequires:  gcc
 BuildRequires:  alsa-lib-devel
+BuildRequires:  AMF-devel
 BuildRequires:  bzip2-devel
 %{?_with_faac:BuildRequires: faac-devel}
 %{?_with_fdk_aac:BuildRequires: fdk-aac-devel}
@@ -341,6 +342,9 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Fri Apr 15 2022 Leigh Scott <leigh123linux@gmail.com> - 4.4.2-1
+- Update to 4.4.2
+
 * Mon Feb 14 2022 Leigh Scott <leigh123linux@gmail.com> - 4.4.1-1
 - Update to 4.4.1
 
