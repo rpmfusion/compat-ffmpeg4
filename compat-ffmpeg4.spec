@@ -46,7 +46,7 @@
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
 Version:        4.4.2
-Release:        4%{?dist}
+Release:        5%{?dist}
 License:        %{ffmpeg_license}
 URL:            http://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
@@ -153,6 +153,8 @@ It is not intended to be used in insecure environment.
 Summary:        Development package for %{name}
 Requires:       %{name}%{_isa} = %{version}-%{release}
 Requires:       pkgconfig
+Conflicts:      ffmpeg-devel
+Conflicts:      ffmpeg-free-devel
 
 %description    devel
 FFmpeg is a complete and free Internet live audio and video
@@ -169,7 +171,7 @@ This package contains development files for %{name}
     --datadir=%{_datadir}/%{name} \\\
     --docdir=%{_docdir}/%{name} \\\
     --incdir=%{_includedir}/%{name} \\\
-    --libdir=%{_libdir}/%{name} \\\
+    --libdir=%{_libdir} \\\
     --mandir=%{_mandir} \\\
     --arch=%{_target_cpu} \\\
     --optflags="%{optflags}" \\\
@@ -309,18 +311,6 @@ sed -i "s|check_host_cflags -O3|check_host_cflags %{optflags}|" configure
 
 %install
 %make_install V=1
-#Alternative ffmpeg package move headers into a special directory
-if ! [ %{name} == ffmpeg ] ; then
-mkdir -p %{buildroot}%{_libdir}/%{name}/pkgconfig
-for s in %{buildroot}/%{_libdir}/*.so ; do 
-  ffmpegsym=`basename ${s}`
-  ffmpeglib=`readlink ${s}`
-  echo "Symlink $ffmpeglib"
-  ln -fs ../${ffmpeglib} \
-    %{buildroot}%{_libdir}/%{name}/${ffmpegsym}
-done
-rm -rf %{buildroot}/%{_libdir}/*.so
-fi
 rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 %ldconfig_scriptlets
@@ -335,13 +325,14 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 %files devel
 %doc MAINTAINERS doc/APIchanges doc/*.txt
 %{_includedir}/%{name}
-%dir %{_libdir}/%{name}
-%dir %{_libdir}/%{name}/pkgconfig
-%{_libdir}/%{name}/pkgconfig/lib*.pc
-%{_libdir}/%{name}/lib*.so
+%{_libdir}/pkgconfig/lib*.pc
+%{_libdir}/lib*.so
 
 
 %changelog
+* Sun Sep 04 2022 Leigh Scott <leigh123linux@gmail.com> - 4.4.2-5
+- Use standard location for pkgconfig and development libs
+
 * Sun Aug 07 2022 RPM Fusion Release Engineering <sergiomb@rpmfusion.org> - 4.4.2-4
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_37_Mass_Rebuild and ffmpeg
   5.1
