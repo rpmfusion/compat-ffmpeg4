@@ -1,5 +1,6 @@
 %undefine _package_note_file
 %global __provides_exclude_from ^(%{_libdir}/pkgconfig)/.*$
+%global __requires_exclude_from ^(%{_libdir}/pkgconfig)/.*$
 
 # Cuda and others are only available on some arches
 %if 0%{?el7}
