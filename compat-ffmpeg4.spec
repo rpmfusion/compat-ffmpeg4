@@ -1,4 +1,5 @@
 %undefine _package_note_file
+%global __provides_exclude_from ^(%{_libdir}/pkgconfig)/.*$
 
 # Cuda and others are only available on some arches
 %if 0%{?el7}
@@ -46,7 +47,7 @@
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
 Version:        4.4.2
-Release:        5%{?dist}
+Release:        6%{?dist}
 License:        %{ffmpeg_license}
 URL:            http://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
@@ -330,6 +331,9 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Sun Sep 04 2022 Leigh Scott <leigh123linux@gmail.com> - 4.4.2-6
+- Remove pkgconfig provides from devel
+
 * Sun Sep 04 2022 Leigh Scott <leigh123linux@gmail.com> - 4.4.2-5
 - Use standard location for pkgconfig and development libs
 
