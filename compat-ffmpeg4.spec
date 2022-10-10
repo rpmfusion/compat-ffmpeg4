@@ -47,8 +47,8 @@
 
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
-Version:        4.4.2
-Release:        6%{?dist}
+Version:        4.4.3
+Release:        1%{?dist}
 License:        %{ffmpeg_license}
 URL:            http://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
@@ -332,6 +332,9 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Mon Oct 10 2022 Leigh Scott <leigh123linux@gmail.com> - 4.4.3-1
+- Update to 4.4.3
+
 * Sun Sep 04 2022 Leigh Scott <leigh123linux@gmail.com> - 4.4.2-6
 - Remove pkgconfig provides from devel
 
