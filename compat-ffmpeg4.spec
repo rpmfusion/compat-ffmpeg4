@@ -12,15 +12,10 @@
 %endif
 
 %if 0%{?el9}
-%global _without_ass      1
 %global _without_frei0r   1
 %global _without_jack     1
-%global _without_zimg     1
 %ifarch x86_64
 %global _with_mfx         1
-%endif
-%ifnarch x86_64
-%global _without_vaapi    1
 %endif
 %endif
 
