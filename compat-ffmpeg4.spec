@@ -45,7 +45,7 @@ Name:           compat-ffmpeg4
 Version:        4.4.3
 Release:        2%{?dist}
 License:        %{ffmpeg_license}
-URL:            http://ffmpeg.org/
+URL:            https://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
 
 BuildRequires:  gcc
