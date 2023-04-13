@@ -42,11 +42,13 @@
 
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
-Version:        4.4.3
-Release:        3%{?dist}
+Version:        4.4.4
+Release:        1%{?dist}
 License:        %{ffmpeg_license}
 URL:            https://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
+Source1:        %{url}/releases/ffmpeg-%{version}.tar.xz.asc
+Source2:        %{url}/ffmpeg-devel.asc
 
 BuildRequires:  gcc
 BuildRequires:  alsa-lib-devel
@@ -60,6 +62,7 @@ BuildRequires:  freetype-devel
 BuildRequires:  fribidi-devel
 %{!?_without_frei0r:BuildRequires: frei0r-devel}
 %{?_with_gme:BuildRequires: game-music-emu-devel}
+BuildRequires:  gnupg2
 BuildRequires:  gnutls-devel
 BuildRequires:  gsm-devel
 %{?_with_ilbc:BuildRequires: ilbc-devel}
@@ -253,6 +256,7 @@ This package contains development files for %{name}
 
 
 %prep
+%{gpgverify} --keyring='%{SOURCE2}' --signature='%{SOURCE1}' --data='%{SOURCE0}'
 %autosetup -p1 -n ffmpeg-%{version}
 
 # fix -O3 -g in host_cflags
@@ -327,6 +331,9 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Thu Apr 13 2023 Leigh Scott <leigh123linux@gmail.com> - 4.4.4-1
+- Update to 4.4.4
+
 * Wed Mar 22 2023 Nicolas Chauvet <kwizart@gmail.com> - 4.4.3-3
 - rebuilt
 
