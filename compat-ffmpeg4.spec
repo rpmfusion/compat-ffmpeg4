@@ -50,6 +50,7 @@ URL:            https://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
 Source1:        %{url}/releases/ffmpeg-%{version}.tar.xz.asc
 Source2:        %{url}/ffmpeg-devel.asc
+Patch0:         25cd95a9dc3510c3cc0d7aad6f9d83f6a1078c7e.patch
 
 BuildRequires:  gcc
 BuildRequires:  alsa-lib-devel
@@ -175,7 +176,7 @@ This package contains development files for %{name}
     --libdir=%{_libdir} \\\
     --mandir=%{_mandir} \\\
     --arch=%{_target_cpu} \\\
-    --optflags="%{optflags}" \\\
+    --optflags="%{optflags} -Wno-int-conversion" \\\
     --extra-ldflags="%{?__global_ldflags}" \\\
     --disable-manpages \\\
     %{!?_without_amr:--enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libvo-amrwbenc --enable-version3} \\\
