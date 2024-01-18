@@ -20,6 +20,7 @@
 %endif
 
 %if 0%{?fedora}
+%global _without_nvenc    1
 %ifarch x86_64
 %global _with_mfx         1
 %endif
