@@ -20,7 +20,6 @@
 %endif
 
 %if 0%{?fedora}
-%global _without_nvenc    1
 %ifarch x86_64
 %global _with_mfx         1
 %endif
@@ -44,13 +43,15 @@
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
 Version:        4.4.4
-Release:        4%{?dist}
+Release:        5%{?dist}
 License:        %{ffmpeg_license}
 URL:            https://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
 Source1:        %{url}/releases/ffmpeg-%{version}.tar.xz.asc
 Source2:        %{url}/ffmpeg-devel.asc
 Patch0:         25cd95a9dc3510c3cc0d7aad6f9d83f6a1078c7e.patch
+Patch1:         configure-fix-nvenc-detection.patch
+Patch2:         nvenc-stop-using-deprecated-rc-modes.patch
 
 BuildRequires:  gcc
 BuildRequires:  alsa-lib-devel
@@ -333,6 +334,9 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Sat Apr 06 2024 Leigh Scott <leigh123linux@gmail.com> - 4.4.4-5
+- Rebuild for new x265 version
+
 * Sat Feb 03 2024 RPM Fusion Release Engineering <sergiomb@rpmfusion.org> - 4.4.4-4
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_40_Mass_Rebuild
 
