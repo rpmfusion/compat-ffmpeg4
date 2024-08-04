@@ -49,9 +49,8 @@ URL:            https://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
 Source1:        %{url}/releases/ffmpeg-%{version}.tar.xz.asc
 Source2:        %{url}/ffmpeg-devel.asc
-Patch0:         25cd95a9dc3510c3cc0d7aad6f9d83f6a1078c7e.patch
-Patch1:         configure-fix-nvenc-detection.patch
-Patch2:         nvenc-stop-using-deprecated-rc-modes.patch
+Patch0:         configure-fix-nvenc-detection.patch
+Patch1:         nvenc-stop-using-deprecated-rc-modes.patch
 
 BuildRequires:  gcc
 BuildRequires:  alsa-lib-devel
