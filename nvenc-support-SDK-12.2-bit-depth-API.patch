@@ -1,0 +1,61 @@
+diff -uNrp a/libavcodec/nvenc.c b/libavcodec/nvenc.c
+--- a/libavcodec/nvenc.c	2024-07-28 23:54:46.000000000 +0100
++++ b/libavcodec/nvenc.c	2024-11-23 16:57:00.759959963 +0000
+@@ -1114,6 +1114,11 @@ static av_cold int nvenc_setup_h264_conf
+ 
+     h264->level = ctx->level;
+ 
++#ifdef NVENC_HAVE_NEW_BIT_DEPTH_API
++    h264->inputBitDepth = h264->outputBitDepth =
++        IS_10BIT(ctx->data_pix_fmt) ? NV_ENC_BIT_DEPTH_10 : NV_ENC_BIT_DEPTH_8;
++#endif
++
+     if (ctx->coder >= 0)
+         h264->entropyCodingMode = ctx->coder;
+ 
+@@ -1200,7 +1205,12 @@ static av_cold int nvenc_setup_hevc_conf
+ 
+     hevc->chromaFormatIDC = IS_YUV444(ctx->data_pix_fmt) ? 3 : 1;
+ 
++#ifdef NVENC_HAVE_NEW_BIT_DEPTH_API
++    hevc->inputBitDepth = hevc->outputBitDepth =
++        IS_10BIT(ctx->data_pix_fmt) ? NV_ENC_BIT_DEPTH_10 : NV_ENC_BIT_DEPTH_8;
++#else
+     hevc->pixelBitDepthMinus8 = IS_10BIT(ctx->data_pix_fmt) ? 2 : 0;
++#endif
+ 
+     hevc->level = ctx->level;
+ 
+@@ -1405,14 +1415,14 @@ static NV_ENC_BUFFER_FORMAT nvenc_map_bu
+ {
+     switch (pix_fmt) {
+     case AV_PIX_FMT_YUV420P:
+-        return NV_ENC_BUFFER_FORMAT_YV12_PL;
++        return NV_ENC_BUFFER_FORMAT_YV12;
+     case AV_PIX_FMT_NV12:
+-        return NV_ENC_BUFFER_FORMAT_NV12_PL;
++        return NV_ENC_BUFFER_FORMAT_NV12;
+     case AV_PIX_FMT_P010:
+     case AV_PIX_FMT_P016:
+         return NV_ENC_BUFFER_FORMAT_YUV420_10BIT;
+     case AV_PIX_FMT_YUV444P:
+-        return NV_ENC_BUFFER_FORMAT_YUV444_PL;
++        return NV_ENC_BUFFER_FORMAT_YUV444;
+     case AV_PIX_FMT_YUV444P16:
+         return NV_ENC_BUFFER_FORMAT_YUV444_10BIT;
+     case AV_PIX_FMT_0RGB32:
+diff -uNrp a/libavcodec/nvenc.h b/libavcodec/nvenc.h
+--- a/libavcodec/nvenc.h	2024-11-23 17:00:50.338016687 +0000
++++ b/libavcodec/nvenc.h	2024-11-23 16:57:00.760959981 +0000
+@@ -75,6 +75,11 @@ typedef void ID3D11Device;
+ #define NVENC_NO_DEPRECATED_RC
+ #endif
+ 
++// SDK 12.2 compile time feature checks
++#if NVENCAPI_CHECK_VERSION(12, 2)
++#define NVENC_HAVE_NEW_BIT_DEPTH_API
++#endif
++
+ typedef struct NvencSurface
+ {
+     NV_ENC_INPUT_PTR input_surface;

@@ -43,7 +43,7 @@
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
 Version:        4.4.5
-Release:        1%{?dist}
+Release:        2%{?dist}
 License:        %{ffmpeg_license}
 URL:            https://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
@@ -51,6 +51,7 @@ Source1:        %{url}/releases/ffmpeg-%{version}.tar.xz.asc
 Source2:        %{url}/ffmpeg-devel.asc
 Patch0:         configure-fix-nvenc-detection.patch
 Patch1:         nvenc-stop-using-deprecated-rc-modes.patch
+Patch2:         nvenc-support-SDK-12.2-bit-depth-API.patch
 
 BuildRequires:  gcc
 BuildRequires:  alsa-lib-devel
@@ -333,6 +334,9 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Sat Nov 23 2024 Leigh Scott <leigh123linux@gmail.com> - 4.4.5-2
+- Rebuild for new x265
+
 * Sun Aug 04 2024 Leigh Scott <leigh123linux@gmail.com> - 4.4.5-1
 - Update to 4.4.5
 
