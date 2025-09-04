@@ -43,7 +43,7 @@
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
 Version:        4.4.5
-Release:        4%{?dist}
+Release:        5%{?dist}
 License:        %{ffmpeg_license}
 URL:            https://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
@@ -334,6 +334,9 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Thu Sep 04 2025 Sérgio Basto <sergio@serjux.com> - 4.4.5-5
+- Rebuild for x264
+
 * Sun Jul 27 2025 RPM Fusion Release Engineering <sergiomb@rpmfusion.org> - 4.4.5-4
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_43_Mass_Rebuild
 
