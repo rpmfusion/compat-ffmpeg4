@@ -1,0 +1,29 @@
+From 1a9521eae3fa2d3348a39567b26431d81eb10c65 Mon Sep 17 00:00:00 2001
+From: James Almer <jamrial@gmail.com>
+Date: Mon, 15 Sep 2025 22:18:52 -0300
+Subject: [PATCH] avcodec/x86/pngdsp: add missing emms at the end of
+ add_png_paeth_prediction
+
+Fixes unpredictable behavior with floats.
+
+Signed-off-by: James Almer <jamrial@gmail.com>
+(cherry picked from commit 57a29f2e7dd2374a1df27316c6cf7c0225e86758)
+---
+ libavcodec/x86/pngdsp.asm | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libavcodec/x86/pngdsp.asm b/libavcodec/x86/pngdsp.asm
+index 50e4255dec0e..726e6bc712b2 100644
+--- a/libavcodec/x86/pngdsp.asm
++++ b/libavcodec/x86/pngdsp.asm
+@@ -163,6 +163,7 @@ cglobal add_png_paeth_prediction, 5, 7, %1, dst, src, top, w, bpp, end, cntr
+     dec              cntrq
+     jge .bpp_loop
+     POP               dstq
++    emms
+     RET
+ %endmacro
+ 
+-- 
+2.51.0
+
