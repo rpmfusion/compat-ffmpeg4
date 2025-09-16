@@ -337,6 +337,15 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 * Tue Sep 16 2025 Nicolas Chauvet <kwizart@gmail.com> - 4.4.6-1
 - Update to 4.4.6
 
+* Thu Sep 04 2025 Sérgio Basto <sergio@serjux.com> - 4.4.5-5
+- Rebuild for x264
+
+* Sun Jul 27 2025 RPM Fusion Release Engineering <sergiomb@rpmfusion.org> - 4.4.5-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_43_Mass_Rebuild
+
+* Tue Jan 28 2025 RPM Fusion Release Engineering <sergiomb@rpmfusion.org> - 4.4.5-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_42_Mass_Rebuild
+
 * Sat Nov 23 2024 Leigh Scott <leigh123linux@gmail.com> - 4.4.5-2
 - Rebuild for new x265
 
