@@ -1,6 +1,2 @@
-/ffmpeg-4.3.3.tar.xz
-/ffmpeg-4.4.1.tar.xz
-/ffmpeg-4.4.2.tar.xz
-/ffmpeg-4.4.3.tar.xz
-/ffmpeg-4.4.4.tar.xz
-/ffmpeg-4.4.4.tar.xz.asc
+ffmpeg-*.tar.xz
+ffmpeg-*.tar.xz.asc
