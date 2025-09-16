@@ -119,8 +119,7 @@ BuildRequires:  libxcb-devel
 BuildRequires:  libxml2-devel
 %{!?_without_openal:BuildRequires: openal-soft-devel}
 %if 0%{!?_without_opencl:1}
-BuildRequires:  opencl-headers ocl-icd-devel
-%{?fedora:Recommends: opencl-icd}
+BuildRequires:  opencl-headers OpenCL-ICD-Loader-devel
 %endif
 %{?_with_opencv:BuildRequires: opencv-devel}
 BuildRequires:  openjpeg2-devel
