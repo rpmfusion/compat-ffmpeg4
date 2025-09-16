@@ -1,0 +1,616 @@
+From 3d019fe1d6531229f354c54de3562c3d3577c9c8 Mon Sep 17 00:00:00 2001
+From: Timo Rothenpieler <timo@rothenpieler.org>
+Date: Fri, 11 Jun 2021 23:54:34 +0200
+Subject: [PATCH] avfilter: compress CUDA PTX code if possible
+
+---
+ compat/cuda/ptx2c.sh            | 34 ------------
+ configure                       | 17 ++++++
+ ffbuild/bin2c.c                 | 76 ++++++++++++++++++++++++++
+ ffbuild/common.mak              | 28 ++++++++--
+ libavfilter/Makefile            | 11 ++--
+ libavfilter/cuda/load_helper.c  | 96 +++++++++++++++++++++++++++++++++
+ libavfilter/cuda/load_helper.h  | 28 ++++++++++
+ libavfilter/vf_overlay_cuda.c   |  8 +--
+ libavfilter/vf_scale_cuda.c     | 24 ++++++---
+ libavfilter/vf_thumbnail_cuda.c |  7 ++-
+ libavfilter/vf_yadif_cuda.c     |  7 ++-
+ 13 files changed, 281 insertions(+), 58 deletions(-)
+ delete mode 100755 compat/cuda/ptx2c.sh
+ create mode 100644 ffbuild/bin2c.c
+ create mode 100644 libavfilter/cuda/load_helper.c
+ create mode 100644 libavfilter/cuda/load_helper.h
+
+diff --git a/compat/cuda/ptx2c.sh b/compat/cuda/ptx2c.sh
+deleted file mode 100755
+index 48452379c2b4..000000000000
+--- a/compat/cuda/ptx2c.sh
++++ /dev/null
+@@ -1,34 +0,0 @@
+-#!/bin/sh
+-
+-# Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+-#
+-# Permission is hereby granted, free of charge, to any person obtaining a
+-# copy of this software and associated documentation files (the "Software"),
+-# to deal in the Software without restriction, including without limitation
+-# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+-# and/or sell copies of the Software, and to permit persons to whom the
+-# Software is furnished to do so, subject to the following conditions:
+-#
+-# The above copyright notice and this permission notice shall be included in
+-# all copies or substantial portions of the Software.
+-#
+-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+-# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+-# DEALINGS IN THE SOFTWARE.
+-
+-set -e
+-
+-OUT="$1"
+-IN="$2"
+-NAME="$(basename "$IN" | sed 's/\..*//')"
+-
+-printf "const char %s_ptx[] = \\" "$NAME" > "$OUT"
+-echo >> "$OUT"
+-sed -e "$(printf 's/\r//g')" -e 's/["\\]/\\&/g' -e "$(printf 's/^/\t"/')" -e 's/$/\\n"/' < "$IN" >> "$OUT"
+-echo ";" >> "$OUT"
+-
+-exit 0
+diff --git a/configure b/configure
+index bc45958df47b..7729f48d1829 100755
+--- a/configure
++++ b/configure
+@@ -493,6 +493,7 @@ Developer options (useful when working on FFmpeg itself):
+                            in the name) of tests whose result is ignored
+   --enable-linux-perf      enable Linux Performance Monitor API
+   --disable-large-tests    disable tests that use a large amount of memory
++  --disable-ptx-compression don't compress CUDA PTX code even when possible
+ 
+ NOTE: Object files are built at the place where configure is launched.
+ EOF
+@@ -1955,6 +1956,7 @@ CONFIG_LIST="
+     neon_clobber_test
+     ossfuzz
+     pic
++    ptx_compression
+     thumb
+     valgrind_backtrace
+     xmm_clobber_test
+@@ -2332,6 +2334,7 @@ HAVE_LIST="
+     $THREADS_LIST
+     $TOOLCHAIN_FEATURES
+     $TYPES_LIST
++    gzip
+     libdrm_getfb2
+     makeinfo
+     makeinfo_html
+@@ -2345,6 +2348,7 @@ HAVE_LIST="
+     pod2man
+     posix_ioctl
+     texi2html
++    zlib_gzip
+ "
+ 
+ # options emitted with CONFIG_ prefix but not available on the command line
+@@ -3812,6 +3816,7 @@ enable doc
+ enable faan faandct faanidct
+ enable large_tests
+ enable optimizations
++enable ptx_compression
+ enable runtime_cpudetect
+ enable safe_bitstream_reader
+ enable static
+@@ -6329,6 +6334,18 @@ enabled  zlib && { check_pkg_config zlib zlib "zlib.h" zlibVersion ||
+ enabled bzlib && check_lib bzlib bzlib.h BZ2_bzlibVersion    -lbz2
+ enabled  lzma && check_lib lzma   lzma.h lzma_version_number -llzma
+ 
++enabled zlib && test_exec $zlib_extralibs <<EOF && enable zlib_gzip
++#include <zlib.h>
++int main(void) {
++    if (zlibCompileFlags() & (1 << 17)) return 1;
++    return 0;
++}
++EOF
++
++[ -x "$(command -v gzip)" ] && enable gzip
++
++enabled zlib_gzip && enabled gzip || disable ptx_compression
++
+ # On some systems dynamic loading requires no extra linker flags
+ check_lib libdl dlfcn.h "dlopen dlsym" || check_lib libdl dlfcn.h "dlopen dlsym" -ldl
+ 
+diff --git a/ffbuild/bin2c.c b/ffbuild/bin2c.c
+new file mode 100644
+index 000000000000..dfeedd76697d
+--- /dev/null
++++ b/ffbuild/bin2c.c
+@@ -0,0 +1,76 @@
++/*
++ * This file is part of FFmpeg.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++ * DEALINGS IN THE SOFTWARE.
++ */
++
++#include <string.h>
++#include <stdio.h>
++
++int main(int argc, char **argv)
++{
++    const char *name;
++    FILE *input, *output;
++    unsigned int length = 0;
++    unsigned char data;
++
++    if (argc < 3 || argc > 4)
++        return 1;
++
++    input = fopen(argv[1], "rb");
++    if (!input)
++        return -1;
++
++    output = fopen(argv[2], "wb");
++    if (!output)
++        return -1;
++
++    if (argc == 4) {
++        name = argv[3];
++    } else {
++        size_t arglen = strlen(argv[1]);
++        name = argv[1];
++
++        for (int i = 0; i < arglen; i++) {
++            if (argv[1][i] == '.')
++                argv[1][i] = '_';
++            else if (argv[1][i] == '/')
++                name = &argv[1][i+1];
++        }
++    }
++
++    fprintf(output, "const unsigned char ff_%s_data[] = { ", name);
++
++    while (fread(&data, 1, 1, input) > 0) {
++        fprintf(output, "0x%02x, ", data);
++        length++;
++    }
++
++    fprintf(output, "0x00 };\n");
++    fprintf(output, "const unsigned int ff_%s_len = %u;\n", name, length);
++
++    fclose(output);
++
++    if (ferror(input) || !feof(input))
++        return -1;
++
++    fclose(input);
++
++    return 0;
++}
+diff --git a/ffbuild/common.mak b/ffbuild/common.mak
+index 164a43932d3a..cb3d89092bba 100644
+--- a/ffbuild/common.mak
++++ b/ffbuild/common.mak
+@@ -12,10 +12,13 @@ endif
+ 
+ ifndef SUBDIR
+ 
++BIN2CEXE = ffbuild/bin2c$(HOSTEXESUF)
++BIN2C = $(BIN2CEXE)
++
+ ifndef V
+ Q      = @
+ ECHO   = printf "$(1)\t%s\n" $(2)
+-BRIEF  = CC CXX OBJCC HOSTCC HOSTLD AS X86ASM AR LD STRIP CP WINDRES NVCC
++BRIEF  = CC CXX OBJCC HOSTCC HOSTLD AS X86ASM AR LD STRIP CP WINDRES NVCC BIN2C
+ SILENT = DEPCC DEPHOSTCC DEPAS DEPX86ASM RANLIB RM
+ 
+ MSG    = $@
+@@ -98,11 +101,26 @@ COMPILE_MSA = $(call COMPILE,CC,MSAFLAGS)
+ %.h.c:
+ 	$(Q)echo '#include "$*.h"' >$@
+ 
++$(BIN2CEXE): ffbuild/bin2c_host.o
++	$(HOSTLD) $(HOSTLDFLAGS) $(HOSTLD_O) $^ $(HOSTEXTRALIBS)
++
+ %.ptx: %.cu $(SRC_PATH)/compat/cuda/cuda_runtime.h
+ 	$(COMPILE_NVCC)
+ 
+-%.ptx.c: %.ptx
+-	$(Q)sh $(SRC_PATH)/compat/cuda/ptx2c.sh $@ $(patsubst $(SRC_PATH)/%,$(SRC_LINK)/%,$<)
++ifdef CONFIG_PTX_COMPRESSION
++%.ptx.gz: TAG = GZIP
++%.ptx.gz: %.ptx
++	$(M)gzip -c9 $(patsubst $(SRC_PATH)/%,$(SRC_LINK)/%,$<) >$@
++
++%.ptx.c: %.ptx.gz $(BIN2CEXE)
++	$(BIN2C) $(patsubst $(SRC_PATH)/%,$(SRC_LINK)/%,$<) $@ $(subst .,_,$(basename $(notdir $@)))
++else
++%.ptx.c: %.ptx $(BIN2CEXE)
++	$(BIN2C) $(patsubst $(SRC_PATH)/%,$(SRC_LINK)/%,$<) $@ $(subst .,_,$(basename $(notdir $@)))
++endif
++
++clean::
++	$(RM) $(BIN2CEXE)
+ 
+ %.c %.h %.pc %.ver %.version: TAG = GEN
+ 
+@@ -151,7 +169,7 @@ HOBJS        = $(filter-out $(SKIPHEADERS:.h=.h.o),$(ALLHEADERS:.h=.h.o))
+ PTXOBJS      = $(filter %.ptx.o,$(OBJS))
+ $(HOBJS):     CCFLAGS += $(CFLAGS_HEADERS)
+ checkheaders: $(HOBJS)
+-.SECONDARY:   $(HOBJS:.o=.c) $(PTXOBJS:.o=.c) $(PTXOBJS:.o=)
++.SECONDARY:   $(HOBJS:.o=.c) $(PTXOBJS:.o=.c) $(PTXOBJS:.o=.gz) $(PTXOBJS:.o=)
+ 
+ alltools: $(TOOLS)
+ 
+@@ -170,7 +188,7 @@ $(TOOLOBJS): | tools
+ 
+ OUTDIRS := $(OUTDIRS) $(dir $(OBJS) $(HOBJS) $(HOSTOBJS) $(SLIBOBJS) $(TESTOBJS))
+ 
+-CLEANSUFFIXES     = *.d *.gcda *.gcno *.h.c *.ho *.map *.o *.pc *.ptx *.ptx.c *.ver *.version *$(DEFAULT_X86ASMD).asm *~ *.ilk *.pdb
++CLEANSUFFIXES     = *.d *.gcda *.gcno *.h.c *.ho *.map *.o *.pc *.ptx *.ptx.gz *.ptx.c *.ver *.version *$(DEFAULT_X86ASMD).asm *~ *.ilk *.pdb
+ LIBSUFFIXES       = *.a *.lib *.so *.so.* *.dylib *.dll *.def *.dll.a
+ 
+ define RULES
+diff --git a/libavfilter/Makefile b/libavfilter/Makefile
+index b2c254ea6753..7d71c990b7c8 100644
+--- a/libavfilter/Makefile
++++ b/libavfilter/Makefile
+@@ -348,7 +348,8 @@ OBJS-$(CONFIG_OCR_FILTER)                    += vf_ocr.o
+ OBJS-$(CONFIG_OCV_FILTER)                    += vf_libopencv.o
+ OBJS-$(CONFIG_OSCILLOSCOPE_FILTER)           += vf_datascope.o
+ OBJS-$(CONFIG_OVERLAY_FILTER)                += vf_overlay.o framesync.o
+-OBJS-$(CONFIG_OVERLAY_CUDA_FILTER)           += vf_overlay_cuda.o framesync.o vf_overlay_cuda.ptx.o
++OBJS-$(CONFIG_OVERLAY_CUDA_FILTER)           += vf_overlay_cuda.o framesync.o vf_overlay_cuda.ptx.o \
++                                                cuda/load_helper.o
+ OBJS-$(CONFIG_OVERLAY_OPENCL_FILTER)         += vf_overlay_opencl.o opencl.o \
+                                                 opencl/overlay.o framesync.o
+ OBJS-$(CONFIG_OVERLAY_QSV_FILTER)            += vf_overlay_qsv.o framesync.o
+@@ -393,7 +394,8 @@ OBJS-$(CONFIG_ROTATE_FILTER)                 += vf_rotate.o
+ OBJS-$(CONFIG_SAB_FILTER)                    += vf_sab.o
+ OBJS-$(CONFIG_SCALE_FILTER)                  += vf_scale.o scale_eval.o
+ OBJS-$(CONFIG_SCALE_CUDA_FILTER)             += vf_scale_cuda.o scale_eval.o \
+-                                                vf_scale_cuda.ptx.o vf_scale_cuda_bicubic.ptx.o
++                                                vf_scale_cuda.ptx.o vf_scale_cuda_bicubic.ptx.o \
++                                                cuda/load_helper.o
+ OBJS-$(CONFIG_SCALE_NPP_FILTER)              += vf_scale_npp.o scale_eval.o
+ OBJS-$(CONFIG_SCALE_QSV_FILTER)              += vf_scale_qsv.o
+ OBJS-$(CONFIG_SCALE_VAAPI_FILTER)            += vf_scale_vaapi.o scale_eval.o vaapi_vpp.o
+@@ -441,7 +443,8 @@ OBJS-$(CONFIG_TELECINE_FILTER)               += vf_telecine.o
+ OBJS-$(CONFIG_THISTOGRAM_FILTER)             += vf_histogram.o
+ OBJS-$(CONFIG_THRESHOLD_FILTER)              += vf_threshold.o framesync.o
+ OBJS-$(CONFIG_THUMBNAIL_FILTER)              += vf_thumbnail.o
+-OBJS-$(CONFIG_THUMBNAIL_CUDA_FILTER)         += vf_thumbnail_cuda.o vf_thumbnail_cuda.ptx.o
++OBJS-$(CONFIG_THUMBNAIL_CUDA_FILTER)         += vf_thumbnail_cuda.o vf_thumbnail_cuda.ptx.o \
++                                                cuda/load_helper.o
+ OBJS-$(CONFIG_TILE_FILTER)                   += vf_tile.o
+ OBJS-$(CONFIG_TINTERLACE_FILTER)             += vf_tinterlace.o
+ OBJS-$(CONFIG_TLUT2_FILTER)                  += vf_lut2.o framesync.o
+@@ -487,7 +490,7 @@ OBJS-$(CONFIG_XMEDIAN_FILTER)                += vf_xmedian.o framesync.o
+ OBJS-$(CONFIG_XSTACK_FILTER)                 += vf_stack.o framesync.o
+ OBJS-$(CONFIG_YADIF_FILTER)                  += vf_yadif.o yadif_common.o
+ OBJS-$(CONFIG_YADIF_CUDA_FILTER)             += vf_yadif_cuda.o vf_yadif_cuda.ptx.o \
+-                                                yadif_common.o
++                                                yadif_common.o cuda/load_helper.o
+ OBJS-$(CONFIG_YAEPBLUR_FILTER)               += vf_yaepblur.o
+ OBJS-$(CONFIG_ZMQ_FILTER)                    += f_zmq.o
+ OBJS-$(CONFIG_ZOOMPAN_FILTER)                += vf_zoompan.o
+diff --git a/libavfilter/cuda/load_helper.c b/libavfilter/cuda/load_helper.c
+new file mode 100644
+index 000000000000..62d644c29a55
+--- /dev/null
++++ b/libavfilter/cuda/load_helper.c
+@@ -0,0 +1,96 @@
++/*
++ * This file is part of FFmpeg.
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with FFmpeg; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include "config.h"
++
++#include "libavutil/hwcontext.h"
++#include "libavutil/hwcontext_cuda_internal.h"
++#include "libavutil/cuda_check.h"
++
++#if CONFIG_PTX_COMPRESSION
++#include <zlib.h>
++#define CHUNK_SIZE 1024 * 64
++#endif
++
++#include "load_helper.h"
++
++#define CHECK_CU(x) FF_CUDA_CHECK_DL(avctx, cu, x)
++
++int ff_cuda_load_module(void *avctx, AVCUDADeviceContext *hwctx, CUmodule *cu_module,
++                        const unsigned char *data, const unsigned int length)
++{
++    CudaFunctions *cu = hwctx->internal->cuda_dl;
++
++#if CONFIG_PTX_COMPRESSION
++    z_stream stream = { 0 };
++    uint8_t *buf, *tmp;
++    uint64_t buf_size;
++    int ret;
++
++    if (inflateInit2(&stream, 32 + 15) != Z_OK) {
++        av_log(avctx, AV_LOG_ERROR, "Error during zlib initialisation: %s\n", stream.msg);
++        return AVERROR(ENOSYS);
++    }
++
++    buf_size = CHUNK_SIZE * 4;
++    buf = av_realloc(NULL, buf_size);
++    if (!buf) {
++        inflateEnd(&stream);
++        return AVERROR(ENOMEM);
++    }
++
++    stream.next_in = data;
++    stream.avail_in = length;
++
++    do {
++        stream.avail_out = buf_size - stream.total_out;
++        stream.next_out = buf + stream.total_out;
++
++        ret = inflate(&stream, Z_FINISH);
++        if (ret != Z_OK && ret != Z_STREAM_END) {
++            av_log(avctx, AV_LOG_ERROR, "zlib inflate error: %s\n", stream.msg);
++            inflateEnd(&stream);
++            av_free(buf);
++            return AVERROR(EINVAL);
++        }
++
++        if (stream.avail_out == 0) {
++            buf_size += CHUNK_SIZE;
++            tmp = av_realloc(buf, buf_size);
++            if (!tmp) {
++                inflateEnd(&stream);
++                av_free(buf);
++                return AVERROR(ENOMEM);
++            }
++            buf = tmp;
++        }
++    } while (ret != Z_STREAM_END);
++
++    // NULL-terminate string
++    // there is guaranteed to be space for this, due to condition in loop
++    buf[stream.total_out] = 0;
++
++    inflateEnd(&stream);
++
++    ret = CHECK_CU(cu->cuModuleLoadData(cu_module, buf));
++    av_free(buf);
++    return ret;
++#else
++    return CHECK_CU(cu->cuModuleLoadData(cu_module, data));
++#endif
++}
+diff --git a/libavfilter/cuda/load_helper.h b/libavfilter/cuda/load_helper.h
+new file mode 100644
+index 000000000000..31507d6d3e8a
+--- /dev/null
++++ b/libavfilter/cuda/load_helper.h
+@@ -0,0 +1,28 @@
++/*
++ * This file is part of FFmpeg.
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with FFmpeg; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#ifndef AVFILTER_CUDA_DECOMPRESS_H
++#define AVFILTER_CUDA_DECOMPRESS_H
++
++/**
++ * Loads a CUDA module and applies any decompression, if neccesary.
++ */
++int ff_cuda_load_module(void *avctx, AVCUDADeviceContext *hwctx, CUmodule *cu_module,
++                        const unsigned char *data, const unsigned int length);
++
++#endif
+diff --git a/libavfilter/vf_overlay_cuda.c b/libavfilter/vf_overlay_cuda.c
+index 34241c8e1b5c..ddca15585180 100644
+--- a/libavfilter/vf_overlay_cuda.c
++++ b/libavfilter/vf_overlay_cuda.c
+@@ -35,6 +35,8 @@
+ #include "framesync.h"
+ #include "internal.h"
+ 
++#include "cuda/load_helper.h"
++
+ #define CHECK_CU(x) FF_CUDA_CHECK_DL(ctx, ctx->hwctx->internal->cuda_dl, x)
+ #define DIV_UP(a, b) ( ((a) + (b) - 1) / (b) )
+ 
+@@ -291,8 +293,8 @@ static int overlay_cuda_query_formats(AVFilterContext *avctx)
+  */
+ static int overlay_cuda_config_output(AVFilterLink *outlink)
+ {
+-
+-    extern char vf_overlay_cuda_ptx[];
++    extern const unsigned char ff_vf_overlay_cuda_ptx_data[];
++    extern const unsigned int ff_vf_overlay_cuda_ptx_len;
+ 
+     int err;
+     AVFilterContext* avctx = outlink->src;
+@@ -368,7 +370,7 @@ static int overlay_cuda_config_output(AVFilterLink *outlink)
+         return err;
+     }
+ 
+-    err = CHECK_CU(cu->cuModuleLoadData(&ctx->cu_module, vf_overlay_cuda_ptx));
++    err = ff_cuda_load_module(ctx, ctx->hwctx, &ctx->cu_module, ff_vf_overlay_cuda_ptx_data, ff_vf_overlay_cuda_ptx_len);
+     if (err < 0) {
+         CHECK_CU(cu->cuCtxPopCurrent(&dummy));
+         return err;
+diff --git a/libavfilter/vf_scale_cuda.c b/libavfilter/vf_scale_cuda.c
+index 99fef6b22b8f..3eb3223f91cf 100644
+--- a/libavfilter/vf_scale_cuda.c
++++ b/libavfilter/vf_scale_cuda.c
+@@ -39,6 +39,7 @@
+ #include "scale_eval.h"
+ #include "video.h"
+ 
++#include "cuda/load_helper.h"
+ #include "vf_scale_cuda.h"
+ 
+ static const enum AVPixelFormat supported_formats[] = {
+@@ -275,34 +276,41 @@ static av_cold int cudascale_config_props(AVFilterLink *outlink)
+     int w, h;
+     int ret;
+ 
+-    char *scaler_ptx;
++    const unsigned char *scaler_ptx;
++    unsigned int scaler_ptx_len;
+     const char *function_infix = "";
+ 
+-    extern char vf_scale_cuda_ptx[];
+-    extern char vf_scale_cuda_bicubic_ptx[];
++    extern const unsigned char ff_vf_scale_cuda_ptx_data[];
++    extern const unsigned int ff_vf_scale_cuda_ptx_len;
++    extern const unsigned char ff_vf_scale_cuda_bicubic_ptx_data[];
++    extern const unsigned int ff_vf_scale_cuda_bicubic_ptx_len;
+ 
+     switch(s->interp_algo) {
+     case INTERP_ALGO_NEAREST:
+-        scaler_ptx = vf_scale_cuda_ptx;
++        scaler_ptx = ff_vf_scale_cuda_ptx_data;
++        scaler_ptx_len = ff_vf_scale_cuda_ptx_len;
+         function_infix = "_Nearest";
+         s->interp_use_linear = 0;
+         s->interp_as_integer = 1;
+         break;
+     case INTERP_ALGO_BILINEAR:
+-        scaler_ptx = vf_scale_cuda_ptx;
++        scaler_ptx = ff_vf_scale_cuda_ptx_data;
++        scaler_ptx_len = ff_vf_scale_cuda_ptx_len;
+         function_infix = "_Bilinear";
+         s->interp_use_linear = 1;
+         s->interp_as_integer = 1;
+         break;
+     case INTERP_ALGO_DEFAULT:
+     case INTERP_ALGO_BICUBIC:
+-        scaler_ptx = vf_scale_cuda_bicubic_ptx;
++        scaler_ptx = ff_vf_scale_cuda_bicubic_ptx_data;
++        scaler_ptx_len = ff_vf_scale_cuda_bicubic_ptx_len;
+         function_infix = "_Bicubic";
+         s->interp_use_linear = 0;
+         s->interp_as_integer = 0;
+         break;
+     case INTERP_ALGO_LANCZOS:
+-        scaler_ptx = vf_scale_cuda_bicubic_ptx;
++        scaler_ptx = ff_vf_scale_cuda_bicubic_ptx_data;
++        scaler_ptx_len = ff_vf_scale_cuda_bicubic_ptx_len;
+         function_infix = "_Lanczos";
+         s->interp_use_linear = 0;
+         s->interp_as_integer = 0;
+@@ -319,7 +327,7 @@ static av_cold int cudascale_config_props(AVFilterLink *outlink)
+     if (ret < 0)
+         goto fail;
+ 
+-    ret = CHECK_CU(cu->cuModuleLoadData(&s->cu_module, scaler_ptx));
++    ret = ff_cuda_load_module(ctx, device_hwctx, &s->cu_module, scaler_ptx, scaler_ptx_len);
+     if (ret < 0)
+         goto fail;
+ 
+diff --git a/libavfilter/vf_thumbnail_cuda.c b/libavfilter/vf_thumbnail_cuda.c
+index de61afd1f52a..fa36795b225d 100644
+--- a/libavfilter/vf_thumbnail_cuda.c
++++ b/libavfilter/vf_thumbnail_cuda.c
+@@ -29,6 +29,8 @@
+ #include "avfilter.h"
+ #include "internal.h"
+ 
++#include "cuda/load_helper.h"
++
+ #define CHECK_CU(x) FF_CUDA_CHECK_DL(ctx, s->hwctx->internal->cuda_dl, x)
+ 
+ #define HIST_SIZE (3*256)
+@@ -358,7 +360,8 @@ static int config_props(AVFilterLink *inlink)
+     CudaFunctions *cu = device_hwctx->internal->cuda_dl;
+     int ret;
+ 
+-    extern char vf_thumbnail_cuda_ptx[];
++    extern const unsigned char ff_vf_thumbnail_cuda_ptx_data[];
++    extern const unsigned int ff_vf_thumbnail_cuda_ptx_len;
+ 
+     s->hwctx = device_hwctx;
+     s->cu_stream = s->hwctx->stream;
+@@ -367,7 +370,7 @@ static int config_props(AVFilterLink *inlink)
+     if (ret < 0)
+         return ret;
+ 
+-    ret = CHECK_CU(cu->cuModuleLoadData(&s->cu_module, vf_thumbnail_cuda_ptx));
++    ret = ff_cuda_load_module(ctx, device_hwctx, &s->cu_module, ff_vf_thumbnail_cuda_ptx_data, ff_vf_thumbnail_cuda_ptx_len);
+     if (ret < 0)
+         return ret;
+ 
+diff --git a/libavfilter/vf_yadif_cuda.c b/libavfilter/vf_yadif_cuda.c
+index 3841c5f0d4af..41ecb937b86a 100644
+--- a/libavfilter/vf_yadif_cuda.c
++++ b/libavfilter/vf_yadif_cuda.c
+@@ -24,7 +24,10 @@
+ #include "internal.h"
+ #include "yadif.h"
+ 
+-extern char vf_yadif_cuda_ptx[];
++#include "cuda/load_helper.h"
++
++extern const unsigned char ff_vf_yadif_cuda_ptx_data[];
++extern const unsigned int ff_vf_yadif_cuda_ptx_len;
+ 
+ typedef struct DeintCUDAContext {
+     YADIFContext yadif;
+@@ -319,7 +322,7 @@ static int config_output(AVFilterLink *link)
+     if (ret < 0)
+         goto exit;
+ 
+-    ret = CHECK_CU(cu->cuModuleLoadData(&s->cu_module, vf_yadif_cuda_ptx));
++    ret = ff_cuda_load_module(ctx, s->hwctx, &s->cu_module, ff_vf_yadif_cuda_ptx_data, ff_vf_yadif_cuda_ptx_len);
+     if (ret < 0)
+         goto exit;
+ 
+-- 
+2.51.0
+
