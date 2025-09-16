@@ -52,6 +52,10 @@ Source2:        %{url}/ffmpeg-devel.asc
 Patch0:         configure-fix-nvenc-detection.patch
 Patch1:         nvenc-stop-using-deprecated-rc-modes.patch
 Patch2:         nvenc-support-SDK-12.2-bit-depth-API.patch
+Patch3:         avcodec-x86-pngdsp-add-missing-emms-at-the-end-of-ad.patch
+Patch4:         qsv-remove-mfx-prefix-from-mfx-headers.patch
+Patch5:         avfilter-compress-CUDA-PTX-code-if-possible.patch
+Patch6:         configure-rename-POSIX-ioctl-check.patch
 
 BuildRequires:  gcc
 BuildRequires:  alsa-lib-devel
