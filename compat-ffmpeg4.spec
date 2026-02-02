@@ -43,7 +43,7 @@
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
 Version:        4.4.6
-Release:        2%{?dist}
+Release:        3%{?dist}
 License:        %{ffmpeg_license}
 URL:            https://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
@@ -341,6 +341,9 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Mon Feb 02 2026 RPM Fusion Release Engineering <sergiomb@rpmfusion.org> - 4.4.6-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_44_Mass_Rebuild
+
 * Fri Dec 12 2025 Nicolas Chauvet <kwizart@gmail.com> - 4.4.6-2
 - Rebuilt for libbluray
 
