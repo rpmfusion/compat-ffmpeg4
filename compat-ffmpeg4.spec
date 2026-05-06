@@ -42,7 +42,7 @@
 
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
-Version:        4.4.6
+Version:        4.4.7
 Release:        1%{?dist}
 License:        %{ffmpeg_license}
 URL:            https://ffmpeg.org/
@@ -52,10 +52,9 @@ Source2:        %{url}/ffmpeg-devel.asc
 Patch0:         configure-fix-nvenc-detection.patch
 Patch1:         nvenc-stop-using-deprecated-rc-modes.patch
 Patch2:         nvenc-support-SDK-12.2-bit-depth-API.patch
-Patch3:         avcodec-x86-pngdsp-add-missing-emms-at-the-end-of-ad.patch
-Patch4:         qsv-remove-mfx-prefix-from-mfx-headers.patch
-Patch5:         avfilter-compress-CUDA-PTX-code-if-possible.patch
-Patch6:         configure-rename-POSIX-ioctl-check.patch
+Patch3:         qsv-remove-mfx-prefix-from-mfx-headers.patch
+Patch4:         avfilter-compress-CUDA-PTX-code-if-possible.patch
+Patch5:         configure-rename-POSIX-ioctl-check.patch
 
 BuildRequires:  gcc
 BuildRequires:  alsa-lib-devel
@@ -341,6 +340,21 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Wed May 06 2026 Leigh Scott <leigh123linux@gmail.com> - 4.4.7-1
+- Update to 4.4.7 release
+
+* Mon Apr 20 2026 Leigh Scott <leigh123linux@gmail.com> - 4.4.6-5
+- Rebuild for new x265
+
+* Fri Mar 20 2026 Nicolas Chauvet <kwizart@gmail.com> - 4.4.6-4
+- Rebuilt for libvpx-1.16.0
+
+* Mon Feb 02 2026 RPM Fusion Release Engineering <sergiomb@rpmfusion.org> - 4.4.6-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_44_Mass_Rebuild
+
+* Fri Dec 12 2025 Nicolas Chauvet <kwizart@gmail.com> - 4.4.6-2
+- Rebuilt for libbluray
+
 * Tue Sep 16 2025 Nicolas Chauvet <kwizart@gmail.com> - 4.4.6-1
 - Update to 4.4.6
 
