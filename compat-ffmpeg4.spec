@@ -2,7 +2,6 @@
 %global __provides_exclude_from ^(%{_libdir}/pkgconfig)/.*$
 %global __requires_exclude_from ^(%{_libdir}/pkgconfig)/.*$
 
-# Cuda and others are only available on some arches
 %if 0%{?el7}
 %global _without_aom      1
 %global _without_dav1d    1
