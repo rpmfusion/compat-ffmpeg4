@@ -2,26 +2,8 @@
 %global __provides_exclude_from ^(%{_libdir}/pkgconfig)/.*$
 %global __requires_exclude_from ^(%{_libdir}/pkgconfig)/.*$
 
-%if 0%{?el7}
-%global _without_aom      1
-%global _without_dav1d    1
-%global _without_frei0r   1
-%global _without_opus     1
-%global _without_vpx      1
-%endif
-
-%if 0%{?el9}
-%global _without_frei0r   1
-%global _without_jack     1
 %ifarch x86_64
 %global _with_mfx         1
-%endif
-%endif
-
-%if 0%{?fedora}
-%ifarch x86_64
-%global _with_mfx         1
-%endif
 %endif
 
 # Disable nvenc when not relevant
