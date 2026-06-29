@@ -24,7 +24,7 @@
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
 Version:        4.4.8
-Release:        1%{?dist}
+Release:        2%{?dist}
 License:        %{ffmpeg_license}
 URL:            https://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
@@ -321,6 +321,9 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Mon Jun 29 2026 Nicolas Chauvet <kwizart@gmail.com> - 4.4.8-2
+- Clean-up macros for EL
+
 * Mon Jun 22 2026 Leigh Scott <leigh123linux@gmail.com> - 4.4.8-1
 - Update to 4.4.8
 
