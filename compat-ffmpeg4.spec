@@ -2,27 +2,8 @@
 %global __provides_exclude_from ^(%{_libdir}/pkgconfig)/.*$
 %global __requires_exclude_from ^(%{_libdir}/pkgconfig)/.*$
 
-# Cuda and others are only available on some arches
-%if 0%{?el7}
-%global _without_aom      1
-%global _without_dav1d    1
-%global _without_frei0r   1
-%global _without_opus     1
-%global _without_vpx      1
-%endif
-
-%if 0%{?el9}
-%global _without_frei0r   1
-%global _without_jack     1
 %ifarch x86_64
 %global _with_mfx         1
-%endif
-%endif
-
-%if 0%{?fedora}
-%ifarch x86_64
-%global _with_mfx         1
-%endif
 %endif
 
 # Disable nvenc when not relevant
@@ -42,8 +23,8 @@
 
 Summary:        Digital VCR and streaming server
 Name:           compat-ffmpeg4
-Version:        4.4.7
-Release:        1%{?dist}
+Version:        4.4.8
+Release:        2%{?dist}
 License:        %{ffmpeg_license}
 URL:            https://ffmpeg.org/
 Source0:        %{url}/releases/ffmpeg-%{version}.tar.xz
@@ -340,6 +321,12 @@ rm -rf %{buildroot}/%{_datadir}/compat-ffmpeg4/
 
 
 %changelog
+* Mon Jun 29 2026 Nicolas Chauvet <kwizart@gmail.com> - 4.4.8-2
+- Clean-up macros for EL
+
+* Mon Jun 22 2026 Leigh Scott <leigh123linux@gmail.com> - 4.4.8-1
+- Update to 4.4.8
+
 * Wed May 06 2026 Leigh Scott <leigh123linux@gmail.com> - 4.4.7-1
 - Update to 4.4.7 release
 
